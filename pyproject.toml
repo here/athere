@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "athere"
+version = "0.1.0"
+description = "Geo-located text posts on AT Protocol via H3 hexagonal indexing"
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40",
+    "atproto>=0.0.55",
+    "h3>=4.0",
+    "python-dotenv>=1.0",
+]
+
+[project.scripts]
+athere = "athere.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["athere"]
