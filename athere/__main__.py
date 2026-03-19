@@ -22,14 +22,19 @@ def main() -> None:
         return
 
     if len(sys.argv) >= 2 and sys.argv[1] == "nearby":
-        print(handler.dispatch("get_nearby_posts", {}))
+        args: dict = {}
+        if len(sys.argv) >= 3:
+            args["rings"] = int(sys.argv[2])
+        if len(sys.argv) >= 4:
+            args["res"] = int(sys.argv[3])
+        print(handler.dispatch("get_nearby_posts", args))
         return
 
     # Agent mode (requires valid ANTHROPIC_API_KEY)
     if not config.anthropic_api_key:
         print("Usage: python -m athere post <text>")
         print("       python -m athere location")
-        print("       python -m athere nearby")
+        print("       python -m athere nearby [rings] [res]")
         print("Set ANTHROPIC_API_KEY to enable the interactive chat agent.")
         return
 

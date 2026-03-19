@@ -63,6 +63,12 @@ TOOLS = [
                     "maximum": 100,
                     "description": "Max posts to return per cell query.",
                 },
+                "res": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 15,
+                    "description": "H3 resolution override. Defaults to ATHERE_H3_RES.",
+                },
             },
             "required": [],
         },
@@ -103,8 +109,9 @@ class ToolHandler:
         cell = geo.latlng_to_cell(self.config.lat, self.config.lng, self.config.h3_res)
         return ap.create_geo_post(self.client, text, cell, self.config.h3_res, langs)
 
-    def _get_nearby_posts(self, rings: int = 1, limit: int = 50) -> dict:
-        cell = geo.latlng_to_cell(self.config.lat, self.config.lng, self.config.h3_res)
+    def _get_nearby_posts(self, rings: int = 1, limit: int = 50, res: int | None = None) -> dict:
+        effective_res = res if res is not None else self.config.h3_res
+        cell = geo.latlng_to_cell(self.config.lat, self.config.lng, effective_res)
         cells = geo.cell_neighbors(cell, k=rings)
 
         all_posts: list[dict] = []
@@ -115,4 +122,4 @@ class ToolHandler:
             matching = [p for p in posts if p.get("h3Cell") == c]
             all_posts.extend(matching)
 
-        return {"cells_searched": len(cells), "posts": all_posts}
+        return {"h3Res": effective_res, "cells_searched": len(cells), "posts": all_posts}
