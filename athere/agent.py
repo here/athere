@@ -27,7 +27,7 @@ def run(config: Config) -> None:
 
     client = ap.get_client(config)
     handler = ToolHandler(config, client)
-    ai = anthropic.Anthropic(api_key=config.anthropic_api_key)
+    ai = anthropic.Anthropic(api_key=config.anthropic_api_key)  # key is guaranteed non-None by __main__
 
     messages: list[dict] = []
     print(f"athere — logged in as {config.handle}")
