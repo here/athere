@@ -107,7 +107,7 @@ class ToolHandler:
 
     def _post_geo_message(self, text: str, langs: list[str] | None = None) -> dict:
         cell = geo.latlng_to_cell(self.config.lat, self.config.lng, self.config.h3_res)
-        return ap.create_geo_post(self.client, text, cell, self.config.h3_res, langs)
+        return ap.create_geo_post(self.client, text, cell, langs)
 
     def _get_nearby_posts(self, rings: int = 1, limit: int = 50, res: int | None = None) -> dict:
         effective_res = res if res is not None else self.config.h3_res
@@ -119,7 +119,7 @@ class ToolHandler:
             # TODO: replace with a proper spatial index query when available
             # For now, query the authenticated user's own posts as a v0 stub
             posts, _ = ap.list_geo_posts(self.client, self.client.me.did, limit=limit)
-            matching = [p for p in posts if p.get("h3Cell") == c]
+            matching = [p for p in posts if p.get("location", {}).get("value") == c]
             all_posts.extend(matching)
 
         return {"h3Res": effective_res, "cells_searched": len(cells), "posts": all_posts}

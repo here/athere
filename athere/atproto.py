@@ -19,15 +19,13 @@ def create_geo_post(
     client: Client,
     text: str,
     h3_cell: str,
-    h3_res: int,
     langs: list[str] | None = None,
 ) -> dict:
     """Publish a community.athere.geo.post record. Returns {uri, cid}."""
     record: dict = {
         "$type": COLLECTION,
         "text": text,
-        "h3Cell": h3_cell,
-        "h3Res": h3_res,
+        "location": {"$type": "community.lexicon.location.hthree", "value": h3_cell},
         "createdAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
     if langs:
