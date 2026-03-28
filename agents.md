@@ -10,7 +10,7 @@ Publish and read geo-located text content on the AT Protocol using H3 hexagonal 
 
 | Area | Status | Notes |
 |---|---|---|
-| Lexicon definition | ✅ Done | `lexicons/community/athere/geo/post.json` |
+| Lexicon definition | ✅ Done | `lexicons/community/athere/geo/post.json` — location field uses `community.lexicon.location.hthree` |
 | H3 geo utilities | ✅ Done | `athere/geo.py` |
 | AT Protocol client | ✅ Done | `athere/atproto.py` — create, list, delete |
 | Tool definitions | ✅ Done | `athere/tools.py` — 3 tools wired |
@@ -27,9 +27,13 @@ Publish and read geo-located text content on the AT Protocol using H3 hexagonal 
 
 **Base NSID:** `community.athere.geo`
 
+**Location types:** [`community.lexicon.location`](https://lexicon.garden/browse/community.lexicon.location) — shared community lexicon for AT Protocol location data. athere uses `community.lexicon.location.hthree` as its primary location type.
+
 ### `community.athere.geo.post`
 
 A text post anchored to an H3 cell. Stored on the user's Bluesky PDS. Does not appear on the Bluesky social network.
+
+The `location` field is a union typed against the [`community.lexicon.location`](https://lexicon.garden/browse/community.lexicon.location) namespace. `community.lexicon.location.hthree` is the preferred type — the H3 cell resolution is implicit in the cell ID itself and does not need to be stored as a separate field.
 
 ```json
 {
@@ -41,13 +45,23 @@ A text post anchored to an H3 cell. Stored on the user's Bluesky PDS. Does not a
       "key": "tid",
       "record": {
         "type": "object",
-        "required": ["text", "h3Cell", "h3Res", "createdAt"],
+        "required": ["text", "location", "createdAt"],
         "properties": {
-          "text":      { "type": "string", "maxLength": 3000 },
-          "h3Cell":    { "type": "string", "description": "H3 cell ID (hex string)" },
-          "h3Res":     { "type": "integer", "minimum": 0, "maximum": 15 },
+          "text": {
+            "type": "string",
+            "maxGraphemes": 300,
+            "maxLength": 3000
+          },
+          "location": {
+            "type": "union",
+            "refs": [
+              "community.lexicon.location.hthree",
+              "community.lexicon.location.geo"
+            ],
+            "description": "Geographic location of the post. Preferred: community.lexicon.location.hthree"
+          },
           "createdAt": { "type": "string", "format": "datetime" },
-          "langs":     { "type": "array", "items": { "type": "string" } }
+          "langs":     { "type": "array", "items": { "type": "string", "format": "language" }, "maxLength": 3 }
         }
       }
     }
@@ -55,11 +69,34 @@ A text post anchored to an H3 cell. Stored on the user's Bluesky PDS. Does not a
 }
 ```
 
-Resolution guidance:
+#### `community.lexicon.location.hthree` (embedded type)
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `value` | string | ✅ | H3 cell ID (hex string, e.g. `87283082effffff`) |
+| `name` | string | — | Human-readable location name |
+
+Resolution guidance (H3 resolution is encoded in the cell ID):
 - **res 5** (~250 km²) — city-region
 - **res 7** (~5 km²) — neighborhood ← default
 - **res 9** (~0.1 km²) — block
 - **res 11** (~10 m²) — precise
+
+Example PDS record payload:
+
+```json
+{
+  "$type": "community.athere.geo.post",
+  "text": "Hello from here",
+  "location": {
+    "$type": "community.lexicon.location.hthree",
+    "value": "87283082effffff",
+    "name": "Hayes Valley, San Francisco"
+  },
+  "createdAt": "2026-03-27T12:00:00Z",
+  "langs": ["en"]
+}
+```
 
 ---
 
@@ -93,7 +130,7 @@ AT Protocol Relay (firehose)
 │  athere Indexer   │  filters community.athere.geo.post commits
 │  (server process) │  verifies repo signatures
 └────────┬──────────┘
-         │  upsert { did, uri, cid, h3Cell, h3Res, text, createdAt }
+         │  upsert { did, uri, cid, location.value, text, createdAt }
          ▼
 ┌───────────────────┐
 │  Spatial DB       │  H3 cell → records index
@@ -124,7 +161,7 @@ When the AppView is live, `get_nearby_posts` in `tools.py` swaps from querying t
 | Tool | What it does |
 |---|---|
 | `get_my_location` | Returns current H3 cell + lat/lng centroid from env config |
-| `post_geo_message` | Encodes location → H3, publishes to Bluesky PDS |
+| `post_geo_message` | Encodes location → H3, wraps as `community.lexicon.location.hthree`, publishes to Bluesky PDS |
 | `get_nearby_posts` | Fetches geo posts near current location (own repo at v0) |
 
 **Notes:**
@@ -162,7 +199,7 @@ When the AppView is live, `get_nearby_posts` in `tools.py` swaps from querying t
 | Function | Inputs | Output |
 |---|---|---|
 | `get_client` | `config` | authenticated `atproto.Client` |
-| `create_geo_post` | `client, text, h3_cell, h3_res, langs?` | `{uri, cid}` |
+| `create_geo_post` | `client, text, h3_cell, name?, langs?` | `{uri, cid}` |
 | `list_geo_posts` | `client, did, limit, cursor?` | `([records], next_cursor)` |
 | `delete_geo_post` | `client, uri` | — |
 
@@ -171,6 +208,7 @@ When the AppView is live, `get_nearby_posts` in `tools.py` swaps from querying t
 - `app_password` and `handle` from env only — never from chat input.
 - Custom lexicon records sent as raw dicts (atproto SDK only generates models for `app.bsky.*`).
 - **Publishing does not create any Bluesky social post.** Records are stored in the user's PDS repo under the `community.athere.geo.post` collection and are invisible to Bluesky's AppView.
+- The `location` field is sent as a `community.lexicon.location.hthree` object with `$type` set explicitly. The H3 resolution is implicit in the cell ID value; `h3_res` no longer needs to be stored as a separate record field.
 
 **Library:** `atproto >= 0.0.55` (atproto.blue)
 
@@ -196,7 +234,7 @@ The AT Protocol Relay broadcasts every PDS commit via firehose. Bluesky's AppVie
 - Filter ops where `collection == "community.athere.geo.post"`
 - Handle `create`, `update`, `delete` commit ops
 - Verify AT Protocol repo signatures (MST root)
-- Upsert into spatial index keyed by `h3Cell`
+- Upsert into spatial index keyed by `location.value` (the `community.lexicon.location.hthree` cell ID)
 
 ### AppView API
 
@@ -248,7 +286,7 @@ ATHERE_H3_RES=7                        # H3 resolution (default: 7, neighborhood
 ## Open Questions
 
 - [ ] **Lexicon namespace ownership** — `community.athere.geo` works for prototyping but a production namespace should resolve to a domain the project controls.
-- [ ] **Multi-resolution posting** — store a single `h3Res` per post, or store multiple cells (e.g., res 7 + res 9) to support queries at different zoom levels without re-encoding?
+- [ ] **Multi-resolution posting** — now that `community.lexicon.location.hthree` encodes resolution implicitly in the cell ID, store a single `hthree` location per post or store multiple `hthree` entries (e.g., res 7 + res 9) to support queries at different zoom levels without re-encoding?
 - [ ] **Indexer deployment** — single process (firehose subscriber + AppView HTTP API together) vs. separate services. Single process preferred for early deployment.
 - [ ] **Nominatim** — self-hosted vs. public instance. Self-hosted preferred for production to avoid rate limits and data-sharing concerns.
 - [ ] **Claude API optional** — decide whether the orchestrator chat loop is in scope for v0 or whether a direct CLI interface ships first.
